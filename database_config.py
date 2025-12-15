@@ -1,8 +1,7 @@
-import sqlite3
-import os 
+import sqlite3, os
 
 DB_FOLDER = "database"
-DB_NAME = "atlas.db"
+DB_NAME = "atlas"
 DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
 
 def create_table():
