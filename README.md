@@ -1,1 +1,0 @@
-ATLAS (Attendance Tracking and Live Verification System)
