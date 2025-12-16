@@ -58,7 +58,7 @@ class ATLAS(ctk.CTk):
 
 
     def start_video_stream(self):
-        print("[INFO] Video stream placeholder is running.")
+        print("[INFO]: Video stream placeholder sedang berjalan.")
         
         self.after(3000, lambda: self.status_label.configure(text="Status: Memuat database wajah..."))
 
@@ -126,7 +126,7 @@ class ToplevelEnroller(ctk.CTkToplevel):
     
         id_pelajar = register_pelajar_baru(nisn, nama_lengkap, kelas, jurusan, status)
         if id_pelajar is None:
-            return False, "Pendaftaran gagal, NISN sudah exist."
+            return False, "Pendaftaran gagal, ID Pelajar tidak ditemukan."
 
         print(f"\n[INFO]: Siswa/i dengan nama {nama_lengkap} terdaftar dengan ID: {id_pelajar}. Mulai merekam...")
 
@@ -210,7 +210,7 @@ class ToplevelEnroller(ctk.CTkToplevel):
                 self.status_enroll_label.configure(text=f"Berhasil, {message}", text_color="green")
             else:
                 self.status_enroll_label.configure(text=f"Gagal, {message}", text_color="red")
-                self.nisn_entry_delete(0, 'end')
+                self.nisn_entry.delete(0, 'end')
 
 
 if __name__ == "__main__":

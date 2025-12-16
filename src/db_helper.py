@@ -23,7 +23,7 @@ def register_pelajar_baru(nisn, nama_lengkap, kelas, jurusan):
         print("[ERROR]: NISN sudah exist")
         return None 
     except Exception as e: 
-        print(f"[ERROR]: Terjadi kesalahan database {e}")
+        print(f"[ERROR]: Terjadi kesalahan dengan masalah, {e}")
     finally:
         connect.close()
         
