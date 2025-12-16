@@ -8,12 +8,12 @@ from src.face_capture import mulai_rekam_wajah
 ctk.set_appearance_mode("Dark") 
 ctk.set_default_color_theme("blue")
 
-class ATLAS(ctk.CTk):
+class ATLAS(ctk.CTk): ## Cam section
     def __init__(self):
         super().__init__()
 
         self.title("ATLAS - Attendance Tracking and Live Verification System")
-        self.geometry("1160x680") 
+        self.geometry("1160x680")
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -23,9 +23,6 @@ class ATLAS(ctk.CTk):
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(1, weight=1)
-
-        self.title_label = ctk.CTkLabel(self.main_frame, text="LIVE VIEW", font=ctk.CTkFont(size=20, weight="bold")) ## Title
-        self.title_label.grid(row=0, column=0, padx=20, pady=10)
         
         self.video_container = ctk.CTkFrame(self.main_frame, fg_color="gray20", width=640, height=480)
         self.video_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
@@ -33,13 +30,12 @@ class ATLAS(ctk.CTk):
         self.video_label = ctk.CTkLabel(self.video_container, text="Memuat kamera... \n Mohon tunggu sebentar!", fg_color="gray20")
         self.video_label.pack(expand=True, fill="both")
         
-        self.status_label = ctk.CTkLabel(self.main_frame, text="Status: Siap Menerima Absensi", 
-                                          fg_color="gray30", corner_radius=5, height=30)
+        self.status_label = ctk.CTkLabel(self.main_frame, text="Status: Siap Menerima Absensi", fg_color="gray30", corner_radius=5, height=30)
         self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
 
         self.start_video_stream()
 
-    def create_sidebar(self):
+    def create_sidebar(self): ## Object untuk membuat semua button di sidebar
         self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(4, weight=1)
@@ -52,9 +48,12 @@ class ATLAS(ctk.CTk):
 
         self.log_button = ctk.CTkButton(self.sidebar_frame, text="Log Absensi")
         self.log_button.grid(row=2, column=0, padx=20, pady=10)
+        
+        self.download_button = ctk.CTkButton(self.sidebar_frame, text="Download")
+        self.download_button.grid(row=5, column=0, padx=20, pady=(10, 65))
 
         self.exit_button = ctk.CTkButton(self.sidebar_frame, text="Keluar", fg_color="red", hover_color="darkred", command=self.on_closing)
-        self.exit_button.grid(row=5, column=0, padx=20, pady=(10, 20))
+        self.exit_button.grid(row=5, column=0, padx=20, pady=(35, 0))
 
 
     def start_video_stream(self):
@@ -74,9 +73,9 @@ class ATLAS(ctk.CTk):
             self.destroy()
 
 
-class ToplevelEnroller(ctk.CTkToplevel):
+class ToplevelEnroller(ctk.CTkToplevel): 
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs): ## Form
         super().__init__(*args, **kwargs)
         self.title("ATLAS - Pendaftaran Wajah Baru")
         self.geometry("500x500")
