@@ -4,6 +4,7 @@ from tkinter import messagebox
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from src.db_helper import register_pelajar_baru, get_all_known_encodings
 from src.face_capture import mulai_rekam_wajah
+from src.exporter import export_log_csv
 
 ctk.set_appearance_mode("Dark") 
 ctk.set_default_color_theme("blue")
@@ -49,7 +50,7 @@ class ATLAS(ctk.CTk): ## Cam section
         self.log_button = ctk.CTkButton(self.sidebar_frame, text="Log Absensi")
         self.log_button.grid(row=2, column=0, padx=20, pady=10)
         
-        self.download_button = ctk.CTkButton(self.sidebar_frame, text="Download")
+        self.download_button = ctk.CTkButton(self.sidebar_frame, text="Download", command=self.download_action)
         self.download_button.grid(row=5, column=0, padx=20, pady=(10, 65))
 
         self.exit_button = ctk.CTkButton(self.sidebar_frame, text="Keluar", fg_color="red", hover_color="darkred", command=self.on_closing)
@@ -71,6 +72,22 @@ class ATLAS(ctk.CTk): ## Cam section
     def on_closing(self): ## Jalankan fungsi destroy jika keluar
         if messagebox.askokcancel("Tutup Aplikasi", "Yakin mau keluear dari sistem?"):
             self.destroy()
+            
+    def download_action(self): ## Aksi download apabila PIN benar
+        dialog = ctk.CTkInputDialog(text="Masukan PIN untuk download log", title="PIN Keamanan")
+        pin = dialog.get_input()
+        
+        if pin == "NurulFikri":
+            success, message = export_log_csv()
+            
+            if success:
+                messagebox.showinfo("Berhasil!", message)
+            else:
+                messagebox.showinfo("Gagal", message)
+        elif pin is None:
+            pass
+        else:
+            messagebox.showinfo("PIN Salah", "Akses ditolak")
 
 
 class ToplevelEnroller(ctk.CTkToplevel): 
