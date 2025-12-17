@@ -1,7 +1,7 @@
 import sqlite3, os
 
 DB_FOLDER = 'database'
-DB_NAME = 'atlas'
+DB_NAME = 'atlas.db'
 DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
 
 def get_db_connection():
@@ -15,7 +15,7 @@ def register_pelajar_baru(nisn, nama_lengkap, kelas, jurusan):
         cursor.execute("""
                        INSERT INTO siswa (nisn, nama_lengkap, kelas, jurusan, status)
                        VALUES (?, ?, ?, ?, ?)
-                       """), (nisn, nama_lengkap, kelas, jurusan)
+                       """, (nisn, nama_lengkap, kelas, jurusan, 'Aktif'))
         id_baru = cursor.lastrowid
         connect.commit()
         return id_baru
