@@ -2,9 +2,11 @@ import sqlite3, csv, os
 from datetime import datetime
 from tkinter import messagebox
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
-DB_FILE = os.path.join(PROJECT_ROOT, 'database', 'atlas.db')
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_FILE = os.path.join(BASE_DIR, 'database', 'atlas.db')
+
+def get_timestamp():
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 def export_log_csv():
     if not os.path.exists(DB_FILE):
@@ -32,9 +34,8 @@ def export_log_csv():
         if not rows:
             return False, "Data absensi masih kosong"
         
-        timestamp = datetime.now().strftime("%S-%M-%H_%d-%m-%Y")
-        filename = f"Log_Absensi_ATLAS{timestamp}.csv"
-        output_path = os.path.join(PROJECT_ROOT, filename)
+        filename = f"Log_Absensi_ATLAS{get_timestamp()}.csv"
+        output_path = os.path.join(BASE_DIR, filename)
         
         with open(output_path, 'w', newline="", encoding="utf-8") as f:
             writer = csv.writer(f, delimiter=";")
@@ -42,6 +43,38 @@ def export_log_csv():
             writer.writerow(rows)
             
         return True, f"Data berhasil disimpan di \n {filename}" 
+        
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        
+    finally: 
+        if connect:
+            connect.close()
+
+def export_data_pelajar():
+    
+    if not os.path.exists(DB_FILE):
+        return False, "[FAIL]: Database tidak ditemukan"
+    
+    try:
+        connect = sqlite3.connect(DB_FILE)
+        cursor = connect.cursor()
+        
+        cursor.execute("SELECT id, nisn, nama_lengkap, kelas, jurusan, status FROM siswa")
+        row = cursor.fetchall()
+        
+        if not row:
+            return False, "Belum ada Siswa/i yang terdaftar"
+        
+        filename = f"Daftar_Pelajar_{get_timestamp()}.csv"
+        output_path = os.path.join(BASE_DIR, filename)
+        
+        with open(output_path, 'w', newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(["ID", "NISN", "Nama Lengkap", "Kelas", "Jurusan", "Status"])
+            writer.writerow(row)
+            
+        return True, f"File berhasil disimpan di: \n {filename}"
         
     except Exception as e:
         print(f"[ERROR]: {e}")

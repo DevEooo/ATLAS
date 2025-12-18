@@ -1,380 +1,323 @@
-import os, cv2, pickle, sys, face_recognition, numpy as np, tkinter as tk, customtkinter as ctk
+import os, cv2, pickle, sys, numpy as np, customtkinter as ctk, face_recognition
+ 
 from tkinter import messagebox
 from PIL import Image, ImageTk
 from datetime import datetime
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
-from src.db_helper import register_pelajar_baru, get_all_known_encodings, get_db_connection
-from src.face_capture import mulai_rekam_wajah
-from src.exporter import export_log_csv
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(BASE_DIR, 'src'))
+
+from src.db_helper import get_db_connection
+from src.face_capture import mulai_rekam_wajah 
+from src.exporter import export_log_csv, export_data_pelajar
 
 ctk.set_appearance_mode("Dark") 
 ctk.set_default_color_theme("blue")
 
-############################################
-
-class ATLAS(ctk.CTk): ## Cam section
+class ATLAS(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("ATLAS - Attendance Tracking and Live Verification System")
-        self.geometry("1160x680")
+        self.geometry("1160x720")
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         self.known_face_encodings = []
         self.known_face_ids = []
-        self.known_face_name = []
+        self.known_face_names = []
+        
+        self.cd = {} 
+        
         self.load_encodings()
         
-        self.cd_attendance = {}
-
         self.buat_sidebar()
         self.buat_main_frame()
 
-        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-        self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(1, weight=1)
-        
-        self.video_container = ctk.CTkFrame(self.main_frame, fg_color="gray20", width=640, height=480)
-        self.video_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
-        
-        self.video_label = ctk.CTkLabel(self.video_container, text="Memuat kamera... \n Mohon tunggu sebentar!", fg_color="gray20")
-        self.video_label.pack(expand=True, fill="both")
-        
-        self.status_label = ctk.CTkLabel(self.main_frame, text="Status: Siap Menerima Absensi", fg_color="gray30", corner_radius=5, height=30)
-        self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
-
         self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.setup_camera_res() 
+        
+        if not self.cap.isOpened():
+             messagebox.showerror("Kamera tidak dapat diakses")
+        
         self.looping_vid()
 
-    def buat_sidebar(self): ## Object untuk membuat semua button di sidebar
-        self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
+    def setup_camera_res(self):
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    def buat_sidebar(self):
+        self.sidebar_frame = ctk.CTkFrame(self, width=180, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(4, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Menu", font=ctk.CTkFont(size=20, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Menu", 
+                                       font=ctk.CTkFont(size=24, weight="bold"))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 20))
 
-        self.enroll_button = ctk.CTkButton(self.sidebar_frame, text="Register Wajah", command=self.open_enroller_window)
-        self.enroll_button.grid(row=1, column=0, padx=20, pady=10)
+        self.enroll_btn = ctk.CTkButton(self.sidebar_frame, text="Register", 
+                                        height=40, command=self.open_enroller_window)
+        self.enroll_btn.grid(row=1, column=0, padx=20, pady=10)
 
-        self.log_button = ctk.CTkButton(self.sidebar_frame, text="Log Absensi")
-        self.log_button.grid(row=2, column=0, padx=20, pady=10)
+        self.report_option = ctk.CTkOptionMenu(self.sidebar_frame, values=["Log Absensi", "Data Pelajar"])
+        self.report_option.grid(row=3, column=0, padx=20, pady=5)
+
+        self.download_btn = ctk.CTkButton(self.sidebar_frame, text="Download", 
+                                          fg_color="green", hover_color="darkgreen",
+                                          command=self.download_action)
+        self.download_btn.grid(row=4, column=0, padx=20, pady=(5, 10), sticky="n")
+
+        self.exit_btn = ctk.CTkButton(self.sidebar_frame, text="Keluar", 
+                                      fg_color="transparent", border_width=1, border_color="red", text_color="red",
+                                      hover_color="#550000", command=self.on_closing)
+        self.exit_btn.grid(row=5, column=0, padx=20, pady=20, sticky="s")
+
+    def buat_main_frame(self):
+        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(1, weight=1)
+
+        self.video_container = ctk.CTkFrame(self.main_frame, fg_color="black")
+        self.video_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
         
-        self.download_button = ctk.CTkButton(self.sidebar_frame, text="Download", command=self.download_action)
-        self.download_button.grid(row=5, column=0, padx=20, pady=(10, 65))
+        self.video_label = ctk.CTkLabel(self.video_container, text="Memuat kamera...", text_color="white")
+        self.video_label.pack(expand=True, fill="both")
 
-        self.exit_button = ctk.CTkButton(self.sidebar_frame, text="Keluar", fg_color="red", hover_color="darkred", command=self.on_closing)
-        self.exit_button.grid(row=5, column=0, padx=20, pady=(35, 0))
+        self.status_label = ctk.CTkLabel(self.main_frame, text="Menunggu Wajah...", 
+                                         fg_color="#333333", corner_radius=8, height=45, 
+                                         font=("Arial", 16, "bold"))
+        self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
 
-    def start_video_stream(self, id_pelajar): ## Import variable dari face_capture.py
-        print("[INFO]: Video stream placeholder sedang berjalan.")
+    def download_action(self):
+        pilihan = self.report_option.get()
+        dialog = ctk.CTkInputDialog(text=f"Masukkan PIN Keamanan", title="Keamanan")
+        pin = dialog.get_input()
         
-        self.after(3000, lambda: self.status_label.configure(text="Status: Memuat database wajah..."))
+        if pin == "atlas":
+            success, msg = False, ""
+            if pilihan == "Log Absensi": success, msg = export_log_csv()
+            elif pilihan == "Data Pelajar": success, msg = export_data_pelajar()
+            
+            if success: messagebox.showinfo("Sukses", msg)
+            else: messagebox.showwarning("Gagal", msg)
+        elif pin is not None:
+            messagebox.showerror("PIN yang dimasukan salah!")
 
-    def open_enroller_window(self): ## Def window baru
+    def load_encodings(self):
+        try:
+            pickle_path = os.path.join(BASE_DIR, 'database', 'face_encodings.pickle')
+            if os.path.exists(pickle_path):
+                with open(pickle_path, 'rb') as f:
+                    data = pickle.load(f)
+                    self.known_face_encodings = data["encodings"]
+                    self.known_face_ids = data["ids"]
+                    self.known_face_names = data["names"]
+                print(f"[INFO]: Database dimuat: {len(self.known_face_names)} wajah.")
+            else:
+                print("[INFO]: Database Kosong.")
+        except Exception as e:
+            print(f"[ERROR]: Gagal load pickle: {e}")
+
+    def stop_camera(self):
+        if self.cap.isOpened(): self.cap.release()
+        self.video_label.configure(image=None, text="Menu pendaftaran aktif...")
+
+    def restart_camera(self):
+        if not self.cap.isOpened():
+            self.cap = cv2.VideoCapture(0)
+            self.setup_camera_res()
+            self.looping_vid()
+
+    def open_enroller_window(self):
         if not hasattr(self, 'enroller_window') or self.enroller_window is None or not self.enroller_window.winfo_exists():
             self.enroller_window = ToplevelEnroller(self)
         else:
             self.enroller_window.focus()
 
-    def on_closing(self): ## Jalankan fungsi destroy jika keluar
-        if messagebox.askokcancel("Tutup Aplikasi", "Yakin mau keluear dari sistem?"):
-            self.cap.release()
+    def on_closing(self):
+        if messagebox.askokcancel("Keluar", "Yakin mau tutup aplikasi ini?"):
+            if self.cap.isOpened(): self.cap.release()
             self.destroy()
-    
-    def stop_camera(self):
-        if self.cap.isOpened():
-            self.cap.release()
-        self.video_label.configure(image=None, text="Kamera digunakan sistem lain.")
 
-    def restart_camera(self):
-        if not self.cap.isOpened():
-            self.cap = cv2.VideoCapture(0)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # Dimensity lebar
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # Dimensity Tinggi
-            self.looping_vid() 
-            
-    def download_action(self): ## Aksi download apabila PIN benar
-        dialog = ctk.CTkInputDialog(text="Masukan PIN untuk download log", title="PIN Keamanan")
-        pin = dialog.get_input()
-        
-        if pin == "NurulFikri":
-            success, message = export_log_csv()
-            
-            if success:
-                messagebox.showinfo("Berhasil!", message)
-            else:
-                messagebox.showinfo("Gagal", message)
-        elif pin is None:
-            pass
-        else:
-            messagebox.showinfo("PIN Salah", "Akses ditolak")
-            
-    def load_encodings(self):
-        
-        self.known_face_encodings = []
-        self.known_face_ids = []
-        self.known_face_name = []
-        
+    def process_attendance(self, student_id, name, distance):
+    
         try:
-            base_dir  = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(os.path.join(base_dir, 'database', 'face_encodings.pickle'))
+            conn = get_db_connection()
+            cursor = conn.cursor()
             
-            print(f"[DEBUG] Memuat database wajah dari: {db_path}")
-            
-            if os.path.exists(db_path):
-                with open(db_path, 'rb') as f:
-                    data = pickle.load(f)
-                    self.known_face_encodings = data["encodings"]
-                    self.known_face_ids = data["ids"]
-                    self.known_face_name = data["names"]
-                    
-                jumlah_data = len(self.known_face_encodings)
-                print(f"[INFO]: Berhasil memuat data wajah dengan total wajah terdaftar {jumlah_data}")
-                
-                if jumlah_data == 0:
-                    print(f"[INFO]: File pickle exist, tapi data masih kosong")
-            else:
-                print("[WARNING]: File encoding tidak ditemukan, silahkan register.")
-        except Exception as e:
-            print(f"[ERROR]: Encoding gagal: {e}")
-    
-    def tandai_attendance(self, pelajar_id, nama_lengkap, jarak):
-        sekarang = datetime.now()
-        tanggal_hari_ini = sekarang.strftime("%Y-%m-%d")
-        
-        if pelajar_id in self.cd_attendance: # CD Logic
-            terakhir = self.cd_attendance[pelajar_id]
-            if (sekarang - terakhir).total_seconds() < 3600: ## 3600s = 1h
-                return
-        
-        try: 
-            connect = get_db_connection()
-            cursor = connect.cursor()
-            waktu_str = sekarang.strftime("%H:%M:%S")
-            
+            now = datetime.now()
+            tgl = now.strftime("%Y-%m-%d")
+            jam = now.strftime("%H:%M:%S")
+
             cursor.execute("""
-                           INSERT INTO absensi (id_siswa, tanggal_absen, waktu_absen, tipe_absen, akurasi_kecocokan)
-                           VALUES (?, ?, ?, ?, ?)
-                           """, (pelajar_id, tanggal_hari_ini, sekarang.strftime("%S:%M:%H"), "Masuk", float(jarak)))
+                INSERT INTO absensi (id_siswa, tanggal_absen, waktu_absen, tipe_absen, akurasi_kecocokan)
+                VALUES (?, ?, ?, ?, ?)
+            """, (student_id, tgl, jam, "Masuk", float(distance)))
             
-            connect.commit()
-            connect.close()
+            conn.commit()
+            conn.close()
             
-            self.cd_attendance[pelajar_id] = sekarang
-            
-            self.status_label.configure(text=f"Selamat datang, {nama_lengkap}", fg_color="green")
-            print(f"[SUCCESS]: Absen untuk nama {nama_lengkap}")
-            
-            self.after(3000, lambda: self.status_label.configure(text="Sistem ready."))
+            self.cd[student_id] = now
+            print(f"[BERHASIL]: Absen tercatat dengan nama: {name}")
             
         except Exception as e:
-            print(f"[ERROR]: Gagal menyimpan absensi: {e}")
-        
-    def buat_main_frame(self):
-        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-        self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(1, weight=1)
+            print(f"[ERROR]: Gagal melakukan absen: {e}")
 
-        self.title_label = ctk.CTkLabel(self.main_frame, text="LIVE ATTENDANCE VIEW", font=ctk.CTkFont(size=20, weight="bold"))
-        self.title_label.grid(row=0, column=0, padx=20, pady=10)
-
-        self.video_container = ctk.CTkFrame(self.main_frame, fg_color="black")
-        self.video_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
-        
-        self.video_label = ctk.CTkLabel(self.video_container, text="", corner_radius=10)
-        self.video_label.pack(expand=True, fill="both")
-
-        self.status_label = ctk.CTkLabel(self.main_frame, text="Sistem Siap. Menunggu Wajah...", 
-                                          fg_color="gray30", corner_radius=5, height=40, font=("Arial", 14))
-        self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
-        
     def looping_vid(self):
+        if not self.cap.isOpened(): return
+
         ret, frame = self.cap.read()
-        
-        if not self.cap.isOpened():
-            return
-        
         if ret:
             frame = cv2.flip(frame, 1)
             h, w, _ = frame.shape
             
-            oval_h = int(h / 2.5) ## Dimensity ROI 1/3 total layar
-            oval_w = int(oval_h * 0.75) ## Rasio 3:4
+            small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
             
-            center_X, center_Y = w // 2, h // 2
-            axes = (oval_w, oval_h) ## Dimensity ROI
+            oval_h = int(h / 2.7)
+            oval_w = int(oval_h * 0.75)
+            center_x, center_y = w // 2, h // 2
             
             mask = np.zeros((h, w, 3), dtype='uint8')
-            cv2.ellipse(mask, (center_X, center_Y), axes, 0, 0, 360, (255, 255, 255), -1)
-            
-            blur_frame = cv2.GaussianBlur(frame, (21, 21), 0)
-            dimmed_bg = cv2.addWeighted(blur_frame, 0.5, np.zeros(frame.shape, frame.dtype), 0, 0)
-            
+            cv2.ellipse(mask, (center_x, center_y), (oval_w, oval_h), 0, 0, 360, (255, 255, 255), -1)
+            blur = cv2.GaussianBlur(frame, (21, 21), 0)
+            dimmed = cv2.addWeighted(blur, 0.4, np.zeros_like(frame), 0.6, 0)
             mask_inv = cv2.bitwise_not(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY))
-            face_area = cv2.bitwise_and(frame, frame, mask=cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY))
-            bg_area = cv2.bitwise_and(dimmed_bg, dimmed_bg, mask=mask_inv)
-            final_frame = cv2.add(face_area, bg_area)
+            fg = cv2.bitwise_and(frame, frame, mask=cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY))
+            bg = cv2.bitwise_and(dimmed, dimmed, mask=mask_inv)
+            final_frame = cv2.add(fg, bg)
             
-            default_border = (255, 255, 0) # Cyan
-            
-            crop_Y1, crop_Y2 = center_Y - oval_h, center_Y + oval_h
-            crop_X1, crop_X2 = center_X - oval_w, center_X + oval_w
-            
-            if crop_X1 > 0 and crop_Y1 > 0 and crop_X2 < w and crop_Y2 < h:
-                roi_frame = frame[crop_Y1:crop_Y2, crop_X1:crop_X2]
-                rgb_roi = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2RGB)
-                
-                face_locations = face_recognition.face_locations(rgb_roi)
-                
-                if face_locations:
-                    default_border = (0, 255, 255) # Kuning (Processing)
-                    
-                    # [FIX CRASH 1]: Cek dulu apakah database kosong?
-                    if len(self.known_face_encodings) > 0:
-                        face_encodings = face_recognition.face_encodings(rgb_roi, face_locations)
-                        
-                        for face_encoding in face_encodings:
-                            # Hitung jarak
-                            jarak_face = face_recognition.face_distance(self.known_face_encodings, face_encoding)
-                            
-                            # [FIX CRASH 2]: Pastikan jarak_face tidak kosong sebelum argmin
-                            if len(jarak_face) > 0:
-                                index_kecocokan_terbaik = np.argmin(jarak_face)
-                                jarak = jarak_face[index_kecocokan_terbaik]
-                                
-                                # Logika Match
-                                if jarak < 0.50:
-                                    nama = self.known_face_name[index_kecocokan_terbaik]
-                                    p_id = self.known_face_ids[index_kecocokan_terbaik] 
-                                    
-                                    default_border = (0, 255, 0) # Hijau
-                                    cv2.putText(final_frame, f"{nama}", (center_X - 50, center_Y + oval_h + 30), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                                    
-                                    self.tandai_attendance(p_id, nama, jarak)
-                                    
-                                elif jarak < 0.65:
-                                    default_border = (0, 165, 255) # Orange
-                                    self.status_label.configure(text="⚠️ Wajah kurang jelas.", fg_color="orange")
-                                else:
-                                    default_border = (0, 0, 255) # Merah (Unknown)
-                                    self.status_label.configure(text="⛔ Wajah tidak dikenali", fg_color="red")
-                            else:
-                                # Jika error perhitungan
-                                default_border = (0, 0, 255)
-                    else:
-                        default_border = (0, 0, 255) 
-                        self.status_label.configure(text="⚠️ Database Kosong. Silakan Register dulu.", fg_color="orange")
-                        cv2.putText(final_frame, "DATABASE KOSONG", (center_X - 70, center_Y + oval_h + 30), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            border_color = (56, 56, 54) # Def
+            status_bar_text = "Scanning Wajah..."  
+            status_bar_color = "#333333" 
 
-            cv2.ellipse(final_frame, (center_X, center_Y), axes, 0, 0, 360, default_border, 3)
+            face_locs = face_recognition.face_locations(rgb_small_frame)
             
-            rgb_image = cv2.cvtColor(final_frame, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(rgb_image)
+            if face_locs:
+                border_color = (0, 255, 255)  
+                status_bar_text = "Mengidentifikasi..."
+                status_bar_color = "orange"
+        
+                if self.known_face_encodings:
+                    face_encs = face_recognition.face_encodings(rgb_small_frame, face_locs)
+                    
+                    for encoding in face_encs:
+                        distances = face_recognition.face_distance(self.known_face_encodings, encoding)
+                        
+                        if len(distances) > 0:
+                            best_idx = np.argmin(distances)
+                            min_dist = distances[best_idx]
+                            
+                            if min_dist < 0.45:
+                                name = self.known_face_names[best_idx]
+                                s_id = self.known_face_ids[best_idx]
+                                
+                                is_already_present = False
+                                if s_id in self.cd:
+                                    last_time = self.cd[s_id]
+                                    if (datetime.now() - last_time).total_seconds() < 3600:
+                                        is_already_present = True
+                                
+                                if is_already_present:
+                                    border_color = (0, 255, 255) 
+                                    status_bar_text = f"⚠️ {name} Sudah absen, silahkan absen lagi di esok hari."
+                                    status_bar_color = "orange"
+                    
+                                else:
+                                    border_color = (0, 255, 0)
+                                    status_bar_text = f"✅ Selamat Datang: {name}"
+                                    status_bar_color = "#2CC985"
+                                    self.process_attendance(s_id, name, min_dist)
+
+                            elif min_dist < 0.65:
+                                border_color = (0, 165, 255)
+                                status_bar_text = "⚠️ Wajah Kurang Jelas, Coba mendekat"
+                                status_bar_color = "orange"
+                                
+                            else:
+                                border_color = (0, 0, 255)
+                                status_bar_text = "Wajah tidak dikenali"
+                                status_bar_color = "red"
+    
+                else:
+                    border_color = (0, 0, 255)
+                    status_bar_text = "Database Kosong"
+                    status_bar_color = "#550000"
+
+            cv2.ellipse(final_frame, (center_x, center_y), (oval_w, oval_h), 0, 0, 360, border_color, 4)
+            
+            self.status_label.configure(text=status_bar_text, fg_color=status_bar_color)
+
+            rgb_img = cv2.cvtColor(final_frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb_img)
             
             gui_w = self.video_label.winfo_width()
             gui_h = self.video_label.winfo_height()
+            if gui_w < 10: gui_w, gui_h = w, h
             
-            if gui_w < 10: gui_w = w
-            if gui_h < 10: gui_h = h
-            
-            ctk_img = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(gui_w, gui_h))
-            
+            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(gui_w, gui_h))
             self.video_label.configure(image=ctk_img, text="")
-            self.video_label.image = ctk_img 
-            
-        if self.cap.isOpened():    
+            self.video_label.image = ctk_img
+
+        if self.cap.isOpened():
             self.after(20, self.looping_vid)
 
-####################################################
-
-class ToplevelEnroller(ctk.CTkToplevel): 
-    
-    def __init__(self, parent, *args, **kwargs): ## Form
+class ToplevelEnroller(ctk.CTkToplevel): ## Object to register
+    def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.parent_app = parent
-        self.parent_app.stop_camera()
+        self.parent = parent
+        self.parent.stop_camera()
         
-        self.title("ATLAS - Pendaftaran Wajah Baru")
-        self.geometry("500x500")
-    
-        self.protocol("WM_DELETE_WINDOW", self.on_close_window)
-        
+        self.title("Registrasi Wajah Baru")
+        self.geometry("450x550")
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.grab_set() 
         
-        self.form_frame = ctk.CTkFrame(self)
-        self.form_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        self.frame = ctk.CTkFrame(self)
+        self.frame.pack(padx=20, pady=20, fill="both", expand=True)
         
-        ctk.CTkLabel(self.form_frame, text="Form Pendaftaran Siswa/i", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 15))
+        ctk.CTkLabel(self.frame, text="Form Data Siswa", font=("Arial", 18, "bold")).pack(pady=15)
+        
+        self.inputs = {}
+        fields = ["NISN", "Nama Lengkap", "Kelas", "Jurusan"]
+        for field in fields:
+            ctk.CTkLabel(self.frame, text=field + ":", anchor="w").pack(fill="x", padx=30, pady=(10,0))
+            entry = ctk.CTkEntry(self.frame, placeholder_text=f"Masukkan {field}...")
+            entry.pack(fill="x", padx=30, pady=5)
+            self.inputs[field] = entry
+            
+        self.btn_start = ctk.CTkButton(self.frame, text="Mulai Scan Wajah", height=40, command=self.process)
+        self.btn_start.pack(pady=30, padx=30, fill="x")
+        
+        self.lbl_status = ctk.CTkLabel(self.frame, text="", text_color="yellow")
+        self.lbl_status.pack()
 
-        ctk.CTkLabel(self.form_frame, text="NISN (Nomor Induk Siswa/i Nasional):").pack(pady=(10, 0))
-        self.nisn_entry = ctk.CTkEntry(self.form_frame, placeholder_text="Contoh: 12345")
-        self.nisn_entry.pack(fill="x", padx=40)
-        
-        ctk.CTkLabel(self.form_frame, text="Nama Lengkap:").pack(pady=(10, 0))
-        self.nama_entry = ctk.CTkEntry(self.form_frame, placeholder_text="Nama Lengkap")
-        self.nama_entry.pack(fill="x", padx=40)
-
-        ctk.CTkLabel(self.form_frame, text="Kelas:").pack(pady=(10, 0))
-        self.kelas_entry = ctk.CTkEntry(self.form_frame, placeholder_text="Contoh: XII")
-        self.kelas_entry.pack(fill="x", padx=40)
-        
-        ctk.CTkLabel(self.form_frame, text="Jurusan:").pack(pady=(10, 0))
-        self.jurusan_entry = ctk.CTkEntry(self.form_frame, placeholder_text="Contoh: PPLG 1")
-        self.jurusan_entry.pack(fill="x", padx=40)
-        
-        self.start_enroll_button = ctk.CTkButton(self.form_frame, text="Mulai Rekam Wajah", command=self.process_enrollment)
-        self.start_enroll_button.pack(pady=30)
-        
-        self.status_enroll_label = ctk.CTkLabel(self.form_frame, text="", text_color="yellow")
-        self.status_enroll_label.pack()
-        
-    def on_close_window(self):
-        self.parent_app.restart_camera()
+    def on_close(self):
+        self.parent.restart_camera()
         self.destroy()
-    
-    def get_all_known_encodings():
-        DB_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
-        ENCODING_FILE = os.path.join(DB_FOLDER, 'face_encodings.pickle')
+
+    def process(self):
+        data = {k: v.get().strip() for k, v in self.inputs.items()}
+        if not all(data.values()):
+            self.lbl_status.configure(text="Isi semua kolomnya ya!", text_color="yellow")
+            return
+            
+        self.lbl_status.configure(text="Membuka kamera...", text_color="white")
+        self.update()
         
-        if os.path.exists(ENCODING_FILE):
-         with open(ENCODING_FILE, 'rb') as f:
-            return pickle.load(f)
+        success, msg = mulai_rekam_wajah(data["NISN"], data["Nama Lengkap"], data["Kelas"], data["Jurusan"])
+        
+        if success:
+            self.lbl_status.configure(text="Berhasil Terdaftar!", text_color="green")
+            messagebox.showinfo("Berhasil", msg)
+            self.parent.load_encodings()
+            self.on_close()
         else:
-            return {"encodings": [], "ids": [], "names": []}
-        
-    def process_enrollment(self):
-            nisn = self.nisn_entry.get().strip()
-            nama = self.nama_entry.get().strip()
-            kelas = self.kelas_entry.get().strip()
-            jurusan = self.jurusan_entry.get().strip()
-
-            if not all([nisn, nama, kelas, jurusan]):
-                self.status_enroll_label.configure(text="Tolong isi semua fieldnya ya!", text_color="yellow")
-                return
-
-            self.status_enroll_label.configure(text=f"Merekam wajah untuk {nama}...", text_color="green")
-            self.update()
-            
-            success, message = mulai_rekam_wajah(nisn, nama, kelas, jurusan)
-            
-            if success:
-                self.status_enroll_label.configure(text=f"Berhasil, {message}", text_color="green")
-                self.parent_app.load_encodings()
-                self.after(2000, self.on_close_window)
-            else:
-                self.status_enroll_label.configure(text=f"Gagal, {message}", text_color="red")
-                self.nisn_entry.delete(0, 'end')
+            self.lbl_status.configure(text="Gagal Terdaftar, coba lagi ya", text_color="red")
+            messagebox.showerror("Gagal", msg)
 
 if __name__ == "__main__":
     app = ATLAS()
-    app.enroller_window = None 
     app.mainloop()
