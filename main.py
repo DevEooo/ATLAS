@@ -47,6 +47,8 @@ class ATLAS(ctk.CTk): ## Cam section
         self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
 
         self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.looping_vid()
 
     def buat_sidebar(self): ## Object untuk membuat semua button di sidebar
@@ -69,23 +71,33 @@ class ATLAS(ctk.CTk): ## Cam section
         self.exit_button = ctk.CTkButton(self.sidebar_frame, text="Keluar", fg_color="red", hover_color="darkred", command=self.on_closing)
         self.exit_button.grid(row=5, column=0, padx=20, pady=(35, 0))
 
-
     def start_video_stream(self, id_pelajar): ## Import variable dari face_capture.py
         print("[INFO]: Video stream placeholder sedang berjalan.")
         
         self.after(3000, lambda: self.status_label.configure(text="Status: Memuat database wajah..."))
 
-
     def open_enroller_window(self): ## Def window baru
-        if self.enroller_window is None or not self.enroller_window.winfo_exists():
-            self.enroller_window = ToplevelEnroller(self)   
+        if not hasattr(self, 'enroller_window') or self.enroller_window is None or not self.enroller_window.winfo_exists():
+            self.enroller_window = ToplevelEnroller(self)
         else:
-            self.enroller_window.focus()   
+            self.enroller_window.focus()
 
     def on_closing(self): ## Jalankan fungsi destroy jika keluar
         if messagebox.askokcancel("Tutup Aplikasi", "Yakin mau keluear dari sistem?"):
             self.cap.release()
             self.destroy()
+    
+    def stop_camera(self):
+        if self.cap.isOpened():
+            self.cap.release()
+        self.video_label.configure(image=None, text="Kamera digunakan sistem lain.")
+
+    def restart_camera(self):
+        if not self.cap.isOpened():
+            self.cap = cv2.VideoCapture(0)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # Dimensity lebar
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # Dimensity Tinggi
+            self.looping_vid() 
             
     def download_action(self): ## Aksi download apabila PIN benar
         dialog = ctk.CTkInputDialog(text="Masukan PIN untuk download log", title="PIN Keamanan")
@@ -104,8 +116,16 @@ class ATLAS(ctk.CTk): ## Cam section
             messagebox.showinfo("PIN Salah", "Akses ditolak")
             
     def load_encodings(self):
+        
+        self.known_face_encodings = []
+        self.known_face_ids = []
+        self.known_face_name = []
+        
         try:
-            db_path = os.path.join(os.path.dirname(__file__), 'database', 'face_encoding_pickle')
+            base_dir  = os.path.dirname(os.path.abspath(__file__))
+            db_path = os.path.join(os.path.join(base_dir, 'database', 'face_encodings_pickle'))
+            
+            
             if os.path.exists(db_path):
                 with open(db_path, 'rb') as f:
                     data = pickle.load(f)
@@ -170,13 +190,19 @@ class ATLAS(ctk.CTk): ## Cam section
         
     def looping_vid(self):
         ret, frame = self.cap.read()
+        
+        if not self.cap.isOpened():
+            return
+        
         if ret:
             frame = cv2.flip(frame, 1)
             h, w, _ = frame.shape
             
-            # --- VISUAL ROI ---
+            oval_h = int(h / 2.5) ## Dimensity ROI 1/3 total layar
+            oval_w = int(oval_h * 0.75) ## Rasio 3:4
+            
             center_X, center_Y = w // 2, h // 2
-            axes = (160, 220)
+            axes = (oval_w, oval_h) ## Dimensity ROI
             
             mask = np.zeros((h, w, 3), dtype='uint8')
             cv2.ellipse(mask, (center_X, center_Y), axes, 0, 0, 360, (255, 255, 255), -1)
@@ -191,8 +217,8 @@ class ATLAS(ctk.CTk): ## Cam section
             
             default_border = (255, 255, 0) # Cyan
             
-            crop_Y1, crop_Y2 = center_Y - axes[1], center_Y + axes[1]
-            crop_X1, crop_X2 = center_X - axes[0], center_X + axes[0]
+            crop_Y1, crop_Y2 = center_Y - oval_h, center_Y + oval_h
+            crop_X1, crop_X2 = center_X - oval_w, center_X + oval_w
             
             if crop_X1 > 0 and crop_Y1 > 0 and crop_X2 < w and crop_Y2 < h:
                 roi_frame = frame[crop_Y1:crop_Y2, crop_X1:crop_X2]
@@ -222,7 +248,7 @@ class ATLAS(ctk.CTk): ## Cam section
                                     p_id = self.known_face_ids[index_kecocokan_terbaik] 
                                     
                                     default_border = (0, 255, 0) # Hijau
-                                    cv2.putText(final_frame, f"{nama}", (center_X - 50, center_Y + axes[1] + 30), 
+                                    cv2.putText(final_frame, f"{nama}", (center_X - 50, center_Y + oval_h + 30), 
                                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                                     
                                     self.tandai_attendance(p_id, nama, jarak)
@@ -239,33 +265,41 @@ class ATLAS(ctk.CTk): ## Cam section
                     else:
                         default_border = (0, 0, 255) 
                         self.status_label.configure(text="⚠️ Database Kosong. Silakan Register dulu.", fg_color="orange")
-                        cv2.putText(final_frame, "DATABASE KOSONG", (center_X - 70, center_Y + axes[1] + 30), 
+                        cv2.putText(final_frame, "DATABASE KOSONG", (center_X - 70, center_Y + oval_h + 30), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
             cv2.ellipse(final_frame, (center_X, center_Y), axes, 0, 0, 360, default_border, 3)
             
-            # [FIX UI]: Menggunakan CTkImage (Best Practice CustomTkinter)
-            # Konversi BGR -> RGB
             rgb_image = cv2.cvtColor(final_frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(rgb_image)
             
-            # Bungkus dengan CTkImage agar HighDPI friendly
-            # Size disesuaikan dengan ukuran frame kamera asli atau ukuran container
-            ctk_img = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(w, h))
+            gui_w = self.video_label.winfo_width()
+            gui_h = self.video_label.winfo_height()
             
-            self.video_label.configure(image=ctk_img)
-            self.video_label.image = ctk_img # Keep reference agar tidak dibuang garbage collector
+            if gui_w < 10: gui_w = w
+            if gui_h < 10: gui_h = h
             
-        self.after(20, self.looping_vid)
+            ctk_img = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(gui_w, gui_h))
+            
+            self.video_label.configure(image=ctk_img, text="")
+            self.video_label.image = ctk_img 
+            
+        if self.cap.isOpened():    
+            self.after(20, self.looping_vid)
 
 ####################################################
 
 class ToplevelEnroller(ctk.CTkToplevel): 
     
-    def __init__(self, *args, **kwargs): ## Form
+    def __init__(self, parent, *args, **kwargs): ## Form
         super().__init__(*args, **kwargs)
+        self.parent_app = parent
+        self.parent_app.stop_camera()
+        
         self.title("ATLAS - Pendaftaran Wajah Baru")
         self.geometry("500x500")
+    
+        self.protocol("WM_DELETE_WINDOW", self.on_close_window)
         
         self.grab_set() 
         
@@ -296,6 +330,10 @@ class ToplevelEnroller(ctk.CTkToplevel):
         self.status_enroll_label = ctk.CTkLabel(self.form_frame, text="", text_color="yellow")
         self.status_enroll_label.pack()
         
+    def on_close_window(self):
+        self.parent_app.restart_camera()
+        self.destroy()
+    
     def get_all_known_encodings():
         DB_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
         ENCODING_FILE = os.path.join(DB_FOLDER, 'face_encodings.pickle')
@@ -305,77 +343,6 @@ class ToplevelEnroller(ctk.CTkToplevel):
             return pickle.load(f)
         else:
             return {"encodings": [], "ids": [], "names": []}
-    
-    def mulai_rekam_wajah(nisn, nama_lengkap, kelas, jurusan, status):
-        DB_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
-        ENCODING_FILE = os.path.join(DB_FOLDER, 'face_encodings.pickle')
-    
-        id_pelajar = register_pelajar_baru(nisn, nama_lengkap, kelas, jurusan, status)
-        if id_pelajar is None:
-            return False, "Pendaftaran gagal, ID Pelajar tidak ditemukan."
-
-        print(f"\n[INFO]: Siswa/i dengan nama {nama_lengkap} terdaftar dengan ID: {id_pelajar}. Mulai merekam...")
-
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            return False, "Gagal membuka kamera, pastikan kamera tidak digunakan aplikasi lain."
-
-        SAMPLE_COUNT_TARGET = 7
-        samples_captured = 0 
-        encodings_list = []
-
-        while samples_captured < SAMPLE_COUNT_TARGET:
-            ret, frame = cap.read()
-            if not ret: break 
-
-            frame = cv2.flip(frame, 1)
-
-            cv2.putText(frame, f"Siswa/i: {nama_lengkap} | Sampel: {samples_captured} / {SAMPLE_COUNT_TARGET}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-            cv2.putText(frame, "Tekan 'S' untuk ambil sample", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-
-            cv2.imshow("ATLAS Perekam Wajah (Tekan Esc untuk batal)", frame)
-
-            key = cv2.waitKey(1) & 0xFF
-
-            if key == ord('s'):
-                face_locations = face_recognition.face_locations(frame)
-                if len(face_locations) == 1:
-                    face_encoding = face_recognition.face_encodings(frame, face_locations)
-
-                    if face_encoding: 
-                        encodings_list.append(face_encoding[0])
-                        samples_captured += 1 
-
-                        cv2.putText(frame, "Direkam!", (10, 400), cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 1, (0, 0, 255), 3)
-                        cv2.imshow(frame, "ATLAS Perekam Wajah (Tekan Esc untuk batal.)")
-                        cv2.waitKey(500)
-
-            elif len(face_locations) > 1:
-                print(" [WARNING]: Wajah terdeteksi lebih dari 1.")
-            else: 
-                print(" [WARNING]: Wajah tidak terdeteksi")
-
-            if key == ord('esc'):
-                break
-            
-            cap.release()
-            cv2.destroyAllWindows()
-
-            if len(encodings_list) >= SAMPLE_COUNT_TARGET:
-                avg_encoding = np.mean(encodings_list, axis=0)
-
-                data = get_all_known_encodings()
-                data["encodings"].append(avg_encoding)
-                data["ids"].append(id_pelajar)
-                data["names"].append(nama_lengkap)
-
-                with open(ENCODING_FILE, 'wb') as f:
-                    pickle.dump(data, f)
-
-                return True, f"Wajah dengan nama {nama_lengkap} berhasil didaftarkan! Total {len(data['encodings'])} data."
-
-            else:
-                return False, "Pendaftaran wajah dibatalkan/kurang sampel."
         
     def process_enrollment(self):
             nisn = self.nisn_entry.get().strip()
@@ -394,6 +361,8 @@ class ToplevelEnroller(ctk.CTkToplevel):
             
             if success:
                 self.status_enroll_label.configure(text=f"Berhasil, {message}", text_color="green")
+                self.parent_app.load_encodings()
+                self.after(2000, self.on_close_window)
             else:
                 self.status_enroll_label.configure(text=f"Gagal, {message}", text_color="red")
                 self.nisn_entry.delete(0, 'end')

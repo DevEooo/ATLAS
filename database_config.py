@@ -24,7 +24,7 @@ def create_table():
                 nama_lengkap VARCHAR(100) NOT NULL, 
                 kelas VARCHAR(20) NOT NULL,
                 jurusan VARCHAR(50) NOT NULL, 
-                status TEXT DEFAULT 'Aktif'
+                status TEXT DEFAULT 'Aktif NULLABLE'
             )
         ''')
 
