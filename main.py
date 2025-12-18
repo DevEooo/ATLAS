@@ -123,8 +123,9 @@ class ATLAS(ctk.CTk): ## Cam section
         
         try:
             base_dir  = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(os.path.join(base_dir, 'database', 'face_encodings_pickle'))
+            db_path = os.path.join(os.path.join(base_dir, 'database', 'face_encodings.pickle'))
             
+            print(f"[DEBUG] Memuat database wajah dari: {db_path}")
             
             if os.path.exists(db_path):
                 with open(db_path, 'rb') as f:
@@ -132,7 +133,12 @@ class ATLAS(ctk.CTk): ## Cam section
                     self.known_face_encodings = data["encodings"]
                     self.known_face_ids = data["ids"]
                     self.known_face_name = data["names"]
-                print(f"[INFO]: Berhasil memuat data wajah {len(self.known_face_encodings)}")
+                    
+                jumlah_data = len(self.known_face_encodings)
+                print(f"[INFO]: Berhasil memuat data wajah dengan total wajah terdaftar {jumlah_data}")
+                
+                if jumlah_data == 0:
+                    print(f"[INFO]: File pickle exist, tapi data masih kosong")
             else:
                 print("[WARNING]: File encoding tidak ditemukan, silahkan register.")
         except Exception as e:
@@ -140,7 +146,7 @@ class ATLAS(ctk.CTk): ## Cam section
     
     def tandai_attendance(self, pelajar_id, nama_lengkap, jarak):
         sekarang = datetime.now()
-        tanggal_hari_ini = datetime.strptime("%d-%m-%Y")
+        tanggal_hari_ini = sekarang.strftime("%Y-%m-%d")
         
         if pelajar_id in self.cd_attendance: # CD Logic
             terakhir = self.cd_attendance[pelajar_id]
@@ -150,6 +156,7 @@ class ATLAS(ctk.CTk): ## Cam section
         try: 
             connect = get_db_connection()
             cursor = connect.cursor()
+            waktu_str = sekarang.strftime("%H:%M:%S")
             
             cursor.execute("""
                            INSERT INTO absensi (id_siswa, tanggal_absen, waktu_absen, tipe_absen, akurasi_kecocokan)
