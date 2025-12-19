@@ -18,7 +18,7 @@ class ATLAS(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("ATLAS - Attendance Tracking and Live Verification System")
+        self.title("ATLAS - Sistem Absen Berbasis Face Recognition")
         self.geometry("1160x720")
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -51,25 +51,19 @@ class ATLAS(ctk.CTk):
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(4, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Menu", 
-                                       font=ctk.CTkFont(size=24, weight="bold"))
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Menu", font=ctk.CTkFont(size=24, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 20))
 
-        self.enroll_btn = ctk.CTkButton(self.sidebar_frame, text="Register", 
-                                        height=40, command=self.open_enroller_window)
+        self.enroll_btn = ctk.CTkButton(self.sidebar_frame, text="Register", command=self.open_enroller_window)
         self.enroll_btn.grid(row=1, column=0, padx=20, pady=10)
 
         self.report_option = ctk.CTkOptionMenu(self.sidebar_frame, values=["Log Absensi", "Data Pelajar"])
         self.report_option.grid(row=3, column=0, padx=20, pady=5)
 
-        self.download_btn = ctk.CTkButton(self.sidebar_frame, text="Download", 
-                                          fg_color="green", hover_color="darkgreen",
-                                          command=self.download_action)
+        self.download_btn = ctk.CTkButton(self.sidebar_frame, text="Download", fg_color="green", hover_color="darkgreen", command=self.download_action)
         self.download_btn.grid(row=4, column=0, padx=20, pady=(5, 10), sticky="n")
 
-        self.exit_btn = ctk.CTkButton(self.sidebar_frame, text="Keluar", 
-                                      fg_color="transparent", border_width=1, border_color="red", text_color="red",
-                                      hover_color="#550000", command=self.on_closing)
+        self.exit_btn = ctk.CTkButton(self.sidebar_frame, text="Keluar", fg_color="transparent", border_width=1, border_color="red", text_color="red", hover_color="#550000", command=self.on_closing)
         self.exit_btn.grid(row=5, column=0, padx=20, pady=20, sticky="s")
 
     def buat_main_frame(self):
@@ -84,9 +78,7 @@ class ATLAS(ctk.CTk):
         self.video_label = ctk.CTkLabel(self.video_container, text="Memuat kamera...", text_color="white")
         self.video_label.pack(expand=True, fill="both")
 
-        self.status_label = ctk.CTkLabel(self.main_frame, text="Menunggu Wajah...", 
-                                         fg_color="#333333", corner_radius=8, height=45, 
-                                         font=("Arial", 16, "bold"))
+        self.status_label = ctk.CTkLabel(self.main_frame, text="Menunggu Wajah...", fg_color="#333333", corner_radius=8, height=45, font=("Arial", 16, "bold"))
         self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
 
     def download_action(self):
@@ -221,18 +213,18 @@ class ATLAS(ctk.CTk):
                                 
                                 if is_already_present:
                                     border_color = (0, 255, 255) 
-                                    status_bar_text = f"⚠️ {name} Sudah absen, silahkan absen lagi di esok hari."
+                                    status_bar_text = f"{name} Sudah absen, silahkan absen lagi di esok hari."
                                     status_bar_color = "orange"
                     
                                 else:
                                     border_color = (0, 255, 0)
-                                    status_bar_text = f"✅ Selamat Datang: {name}"
+                                    status_bar_text = f"Selamat Datang: {name}"
                                     status_bar_color = "#2CC985"
                                     self.process_attendance(s_id, name, min_dist)
 
                             elif min_dist < 0.65:
                                 border_color = (0, 165, 255)
-                                status_bar_text = "⚠️ Wajah Kurang Jelas, Coba mendekat"
+                                status_bar_text = "Wajah Kurang Jelas, Coba mendekat"
                                 status_bar_color = "orange"
                                 
                             else:
