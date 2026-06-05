@@ -49,12 +49,12 @@ The system calculates the similarity between faces using **Euclidean distance** 
 
 ---
 
-## Technologies that I've used for this project
+## Techs that I've used for this project
 
 | Component | Technology |
 | :--- | :--- |
 | Language | Python |
-| AI/ML | OpenCV, Face Recognition |
+| AI/ML Libraries | OpenCV, Face Recognition |
 | Database | SQLite |
 | GUI | Tkinter |
 | Others | Pickle, Pillow, Numpy |
@@ -75,7 +75,7 @@ To ensure the system runs efficiently as I expected, so, I've designed these wor
     <img width="600" height="680" alt="Flowchart" src="https://github.com/user-attachments/assets/31261f63-12db-4d9f-a184-358c052936b3" />
 </div>
 
-Unfortunately, these Project Architecture are still written in Indonesian and not in English yet.
+Unfortunately, these Project Architecture are still written in local language (Bahasa Indonesia), not in English.
 
 ---
 
